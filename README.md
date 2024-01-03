@@ -9,38 +9,38 @@ A config file that exists at `/etc/krouter/config.yml`
 
 ```
 program_settings:
-  log_file_path: "/var/log/krouter/gre.log"
+  log_file_path: /var/log/krouter/krouter.log
   logging:
-    info: true
-    error: true
-    debug: false
+    info: True
+    error: True
+    debug: True
 
 gre_tunnels:
-  - name: "gre1"
-    local_ip: "192.168.1.1"
-    remote_ip: "10.0.0.1"
-    tunnel_ip: "10.0.0.2"
-    subnet_mask: "30"
-  - name: "gre2"
-    local_ip: "192.168.1.2"
-    remote_ip: "10.0.0.2"
-    tunnel_ip: "10.0.0.3"
-    subnet_mask: "30"
+  - name: gre1
+    local_ip: 192.168.1.1
+    remote_ip: 10.0.0.1
+    tunnel_ip: 10.0.0.2
+    subnet_mask: 31
+  - name: gre2
+    local_ip: 192.168.1.2
+    remote_ip: 10.0.0.2
+    tunnel_ip: 10.0.0.3
+    subnet_mask: 31
 
 static_routes:
-  - destination: "192.168.2.0/24"
-    gateway: "192.168.1.254"
-  - destination: "192.168.3.0/24"
-    gateway: "192.168.1.254"
+  - destination: 192.168.2.0/24
+    gateway: 192.168.1.254
+  - destination: 192.168.3.0/24
+    gateway: 192.168.1.254
 
 ecmp_routes:
-  - route: "default"
-    table: "GRE"
+  - route: default
+    table: GRE
     nexthops:
-      - dev: "gre1"
-        via: "10.0.40.5"
+      - dev: gre1
+        via: 10.0.40.5
         weight: 1
-      - dev: "gre2"
-        via: "10.0.41.5"
+      - dev: gre2
+        via: 10.0.41.5
         weight: 1
 ```
