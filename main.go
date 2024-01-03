@@ -58,22 +58,24 @@ func initLogger(logFilePath string, infoEnabled, errorEnabled, debugEnabled bool
         log.Fatalf("Failed to open log file: %v", err)
     }
     logger = log.New(logFile, "GRE-Manager: ", log.LstdFlags|log.Lshortfile)
-    logger.SetOutput(logWriter{logger, infoEnabled, errorEnabled, debugEnabled})
+    logger.SetOutput(logWriter{log.New(os.Stdout, "", 0), log.New(logFile, "", 0), infoEnabled, errorEnabled, debugEnabled})
 }
 
 type logWriter struct {
-    logger *log.Logger
-    infoEnabled   bool
-    errorEnabled  bool
-    debugEnabled  bool
+    stdoutLogger *log.Logger
+    fileLogger   *log.Logger
+    infoEnabled  bool
+    errorEnabled bool
+    debugEnabled bool
 }
 
 func (l logWriter) Write(p []byte) (n int, err error) {
-    if l.infoEnabled {
-        err = l.logger.Output(2, string(p))
-        return len(p), err // Return the length of p and the error
+    message := string(p)
+    if l.infoEnabled || l.errorEnabled || l.debugEnabled {
+        l.stdoutLogger.Print(message) // Print to stdout
+        err = l.fileLogger.Output(2, message) // Also log to file
     }
-    return len(p), nil
+    return len(p), err // Return the length of p and the error
 }
 
 func execCommand(command string, args ...string) (string, error) {
