@@ -11,6 +11,8 @@ import (
     "os"
     "os/exec"
     "github.com/fsnotify/fsnotify"
+	"bufio"
+    "bytes"
 )
 
 type Config struct {
@@ -74,25 +76,39 @@ func (l logWriter) Write(p []byte) (n int, err error) {
     return len(p), nil
 }
 
-func execCommand(command string, args ...string) error {
+func execCommand(command string, args ...string) (string, error) {
     cmd := exec.Command(command, args...)
-    cmd.Stdout = os.Stdout
+    var out bytes.Buffer
+    cmd.Stdout = &out
     cmd.Stderr = os.Stderr
-    return cmd.Run()
+    err := cmd.Run()
+    return out.String(), err
+}
+
+func tunnelExists(name string) bool {
+    output, _ := execCommand("ip", "tunnel", "show")
+    return strings.Contains(output, name)
 }
 
 func setupGRETunnels() error {
     for _, tunnel := range config.GRETunnels {
-        if err := execCommand("ip", "tunnel", "del", tunnel.Name); err != nil {
-            logger.Printf("Failed to delete tunnel %s: %v", tunnel.Name, err)
+        if tunnelExists(tunnel.Name) {
+            _, err := execCommand("ip", "tunnel", "del", tunnel.Name)
+            if err != nil {
+                logger.Printf("Failed to delete tunnel %s: %v", tunnel.Name, err)
+            }
         }
-        if err := execCommand("ip", "tunnel", "add", tunnel.Name, "mode", "gre", "local", tunnel.LocalIP, "remote", tunnel.RemoteIP); err != nil {
+
+        _, err := execCommand("ip", "tunnel", "add", tunnel.Name, "mode", "gre", "local", tunnel.LocalIP, "remote", tunnel.RemoteIP)
+        if err != nil {
             return err
         }
-        if err := execCommand("ip", "addr", "add", tunnel.TunnelIP+"/"+tunnel.SubnetMask, "dev", tunnel.Name); err != nil {
+        _, err = execCommand("ip", "addr", "add", tunnel.TunnelIP+"/"+tunnel.SubnetMask, "dev", tunnel.Name)
+        if err != nil {
             return err
         }
-        if err := execCommand("ip", "link", "set", tunnel.Name, "up"); err != nil {
+        _, err = execCommand("ip", "link", "set", tunnel.Name, "up")
+        if err != nil {
             return err
         }
         logger.Printf("Configured tunnel: %s", tunnel.Name)
@@ -100,28 +116,48 @@ func setupGRETunnels() error {
     return nil
 }
 
+func routeExists(destination, gateway string) bool {
+    output, _ := execCommand("ip", "route", "show")
+    return strings.Contains(output, destination) && strings.Contains(output, gateway)
+}
+
 func setupStaticRoutes() error {
     for _, route := range config.StaticRoutes {
-        if err := execCommand("ip", "route", "add", route.Destination, "via", route.Gateway); err != nil {
-            logger.Printf("Failed to add static route %s via %s: %v", route.Destination, route.Gateway, err)
-        } else {
-            logger.Printf("Added static route: %s via %s", route.Destination, route.Gateway)
+        if !routeExists(route.Destination, route.Gateway) {
+            if _, err := execCommand("ip", "route", "add", route.Destination, "via", route.Gateway); err != nil {
+                logger.Printf("Failed to add static route %s via %s: %v", route.Destination, route.Gateway, err)
+            } else {
+                logger.Printf("Added static route: %s via %s", route.Destination, route.Gateway)
+            }
         }
     }
     return nil
 }
 
+func ecmpRouteExists(route, table string) bool {
+    output, _ := execCommand("ip", "route", "show", "table", table)
+    scanner := bufio.NewScanner(strings.NewReader(output))
+    for scanner.Scan() {
+        if strings.Contains(scanner.Text(), route) {
+            return true
+        }
+    }
+    return false
+}
+
 func setupECMPRoutes() error {
     for _, ecmp := range config.ECMPRoutes {
-        var nexthopArgs []string
-        for _, nh := range ecmp.Nexthops {
-            nexthopArgs = append(nexthopArgs, "nexthop", "dev", nh.Dev, "via", nh.Via, "weight", strconv.Itoa(nh.Weight))
-        }
-        args := append([]string{"route", "add", ecmp.Route, "proto", "static", "scope", "global", "table", ecmp.Table}, nexthopArgs...)
-        if err := execCommand("ip", args...); err != nil {
-            logger.Printf("Failed to add ECMP route %s: %v", ecmp.Route, err)
-        } else {
-            logger.Printf("Added ECMP route: %s", strings.Join(args, " "))
+        if !ecmpRouteExists(ecmp.Route, ecmp.Table) {
+            var nexthopArgs []string
+            for _, nh := range ecmp.Nexthops {
+                nexthopArgs = append(nexthopArgs, "nexthop", "dev", nh.Dev, "via", nh.Via, "weight", strconv.Itoa(nh.Weight))
+            }
+            args := append([]string{"route", "add", ecmp.Route, "proto", "static", "scope", "global", "table", ecmp.Table}, nexthopArgs...)
+            if _, err := execCommand("ip", args...); err != nil {
+                logger.Printf("Failed to add ECMP route %s: %v", ecmp.Route, err)
+            } else {
+                logger.Printf("Added ECMP route: %s", strings.Join(args, " "))
+            }
         }
     }
     return nil
