@@ -68,7 +68,8 @@ type logWriter struct {
 
 func (l logWriter) Write(p []byte) (n int, err error) {
     if l.infoEnabled {
-        return l.logger.Output(2, string(p))
+        err = l.logger.Output(2, string(p))
+        return len(p), err // Return the length of p and the error
     }
     return len(p), nil
 }
