@@ -3,7 +3,7 @@ A program to manage GRE tunnels and static routes on Linux
 
 ### Requirements
 
-A config file that exists at `/etc/krouter/config.yml``.
+A config file that exists at `/etc/krouter/config.yml`
 
 ### Example configuration
 
