@@ -206,7 +206,7 @@ func watchConfigFile(filePath string) {
 }
 
 func main() {
-    configFilePath := "/path/to/config.yml"
+    configFilePath := "/etc/krouter/config.yml"
     
     if err := loadConfig(configFilePath); err != nil {
         log.Fatalf("Error loading initial config: %v", err)
